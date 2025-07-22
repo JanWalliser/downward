@@ -1,0 +1,92 @@
+#include "tseitin_transformer.h"
+#include <algorithm>
+#include <iostream>  // Für std::cerr
+
+using namespace std;
+
+namespace tasks {
+
+std::vector<FactPair> TseitinTransformer::transform(const std::vector<FactPair> &preconditions) {
+    vector<FactPair> result;
+
+    // 1) Sortiere, damit (A,B) und (B,A) zum selben Schlüssel werden
+    auto sorted_pre = preconditions;
+    sort(sorted_pre.begin(), sorted_pre.end());
+
+    // Debug: eingehende Precondition-Liste anzeigen
+    cerr << "[TSEITIN] transform() called with preconditions: ";
+    for (auto &fp : sorted_pre) {
+        cerr << "(" << fp.var << "," << fp.value << ") ";
+    }
+    cerr << "\n";
+
+    // 2) Verarbeite Paare (jeweils 2 auf einmal)
+    for (size_t i = 0; i + 1 < sorted_pre.size(); i += 2) {
+        FactPair a = sorted_pre[i];
+        FactPair b = sorted_pre[i + 1];
+        // Key lexikographisch (kleineres FactPair zuerst)
+        pair<FactPair, FactPair> key = (a < b ? make_pair(a, b) : make_pair(b, a));
+
+        auto it = pair_to_fact.find(key);
+        if (it == pair_to_fact.end()) {
+            // Neu: Hilfsliteral erzeugen (var = next_aux_var_id, Wert = next_value_id)
+            FactPair aux(next_aux_var_id, next_value_id);
+            pair_to_fact.emplace(key, aux);
+
+            // Debug: neues Aux‐Literal
+            cerr << "[TSEITIN] new aux  var=" << aux.var << ",value=" << aux.value
+                 << "  for pair  (" << a.var << "," << a.value
+                 << ") ∧ (" << b.var << "," << b.value << ")\n";
+
+            // Axiom: A ∧ B ⇒ aux
+            axioms.push_back({{a, b}, aux});
+            next_aux_var_id++;
+            // result-Liste erweitern
+            result.push_back(aux);
+        } else {
+            // Wiederverwenden
+            FactPair aux = it->second;
+            cerr << "[TSEITIN] reuse aux  var=" << aux.var << ",value=" << aux.value
+                 << "  for pair  (" << a.var << "," << a.value
+                 << ") ∧ (" << b.var << "," << b.value << ")\n";
+            result.push_back(aux);
+        }
+    }
+
+    // 3) Falls ungerade Anzahl, das letzte als Selbst-Paar behandeln
+    if (sorted_pre.size() % 2 == 1) {
+        FactPair lone = sorted_pre.back();
+        cerr << "[TSEITIN] odd single literal detected: (" << lone.var << "," << lone.value << ")\n";
+
+        auto key = make_pair(lone, lone);
+        auto it2 = pair_to_fact.find(key);
+        if (it2 == pair_to_fact.end()) {
+            // Neu: Hilfsliteral erzeugen für (lone,lone)
+            FactPair aux(next_aux_var_id, next_value_id);
+            pair_to_fact.emplace(key, aux);
+
+            // Axiom: aux ⇒ lone (damit Äquivalenz gewahrt)
+            axioms.push_back({{aux}, lone});
+            cerr << "[TSEITIN] new self-pair aux  var=" << aux.var << ",value=" << aux.value
+                 << "  for lone  (" << lone.var << "," << lone.value << ")\n";
+            next_aux_var_id++;
+            result.push_back(aux);
+        } else {
+            FactPair aux = it2->second;
+            cerr << "[TSEITIN] reuse self-pair aux  var=" << aux.var << ",value=" << aux.value
+                 << "  for lone  (" << lone.var << "," << lone.value << ")\n";
+            result.push_back(aux);
+        }
+    }
+
+    // Debug: transformierte result‐Liste ausgeben
+    cerr << "[TSEITIN] transform() returns: ";
+    for (auto &fp : result) {
+        cerr << "(" << fp.var << "," << fp.value << ") ";
+    }
+    cerr << "\n------\n";
+
+    return result;
+}
+
+} // namespace tasks

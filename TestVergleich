@@ -1,0 +1,43 @@
+Ohne transform:
+
+[t=0.003798s, 10920 KB] Plan length: 17 step(s).
+[t=0.003798s, 10920 KB] Plan cost: 2
+[t=0.003798s, 10920 KB] Expanded 179 state(s).
+[t=0.003798s, 10920 KB] Reopened 0 state(s).
+[t=0.003798s, 10920 KB] Evaluated 381 state(s).
+[t=0.003798s, 10920 KB] Evaluations: 381
+[t=0.003798s, 10920 KB] Generated 535 state(s).
+[t=0.003798s, 10920 KB] Dead ends: 0 state(s).
+[t=0.003798s, 10920 KB] Expanded until last jump: 5 state(s).
+[t=0.003798s, 10920 KB] Reopened until last jump: 0 state(s).
+[t=0.003798s, 10920 KB] Evaluated until last jump: 17 state(s).
+[t=0.003798s, 10920 KB] Generated until last jump: 16 state(s).
+[t=0.003798s, 10920 KB] Number of registered states: 381
+[t=0.003798s, 10920 KB] Int hash set load factor: 381/512 = 0.744141
+[t=0.003798s, 10920 KB] Int hash set resizes: 9
+[t=0.003798s, 10920 KB] Search time: 0.001726s
+[t=0.003798s, 10920 KB] Total time: 0.003798s
+
+
+
+mit transform:
+
+[t=0.029343s, 11200 KB] Plan length: 11 step(s).
+[t=0.029343s, 11200 KB] Plan cost: 1
+[t=0.029343s, 11200 KB] Expanded 3214 state(s).
+[t=0.029343s, 11200 KB] Reopened 0 state(s).
+[t=0.029343s, 11200 KB] Evaluated 6641 state(s).
+[t=0.029343s, 11200 KB] Evaluations: 6641
+[t=0.029343s, 11200 KB] Generated 16363 state(s).
+[t=0.029343s, 11200 KB] Dead ends: 0 state(s).
+[t=0.029343s, 11200 KB] Expanded until last jump: 0 state(s).
+[t=0.029343s, 11200 KB] Reopened until last jump: 0 state(s).
+[t=0.029343s, 11200 KB] Evaluated until last jump: 1 state(s).
+[t=0.029343s, 11200 KB] Generated until last jump: 0 state(s).
+[t=0.029343s, 11200 KB] Number of registered states: 6641
+[t=0.029343s, 11200 KB] Int hash set load factor: 6641/8192 = 0.810669
+[t=0.029343s, 11200 KB] Int hash set resizes: 13
+[t=0.029343s, 11200 KB] Search time: 0.024624s
+[t=0.029343s, 11200 KB] Total time: 0.029343s
+
+
