@@ -1,120 +1,98 @@
-
-
 #include "tseitin_transformer.h"
-#include "tseitin_task.h"
 #include <algorithm>
 #include <cassert>
-#include <iostream>
 
-namespace tasks
+using namespace tasks;
+
+// ---------- ctor ----------
+TseitinTransformer::TseitinTransformer(int start_var)
+    : next_aux_var_id(start_var),
+      dbg("tseitin_debug.log", std::ios::out)
 {
+}
 
-    TseitinTransformer::TseitinTransformer(int start_var_id)
-        : next_aux_var_id(start_var_id),
-          next_aux_value(0),
-          debug_file("tseitin_debug.log", std::ios::out)
+// ---------- aux ----------
+FactPair TseitinTransformer::make_aux()
+{
+    return {next_aux_var_id++, next_aux_value}; // Domäne = {0,1}
+}
+
+// ---------- binäre Zerlegung ----------
+FactPair TseitinTransformer::encode_recursive(std::vector<FactPair> &lits)
+{
+    assert(!lits.empty());
+    if (lits.size() == 1)
+        return lits[0];
+
+    FactPair a = lits[0], b = lits[1];
+    auto key = a.var < b.var ? std::pair{a.var, b.var} : std::pair{b.var, a.var};
+
+    FactPair aux(-1, -1);
+    if (auto it = comb_cache.find(key); it != comb_cache.end())
+        aux = it->second;
+    else
     {
-        debug_file << "[TSEITIN] Initialized at var=" << start_var_id << "\n";
+        aux = make_aux();
+        comb_cache.emplace(key, aux);
+        axioms.push_back({{a, b}, aux});
+    }
+    // ersetze (a,b) durch aux u. rekursiv weiter
+    lits.erase(lits.begin(), lits.begin() + 2);
+    lits.insert(lits.begin(), aux);
+    return encode_recursive(lits);
+}
+
+// ---------- top-level Axiom‐Ersetzung ----------
+void TseitinTransformer::encode_axiom(const std::vector<FactPair> &conds,
+                                      const FactPair &eff)
+{
+    std::vector<FactPair> tmp = conds;
+    std::sort(tmp.begin(), tmp.end(),
+              [](auto &x, auto &y)
+              { return std::tie(x.var, x.value) < std::tie(y.var, y.value); });
+    FactPair head = encode_recursive(tmp);
+    axioms.push_back({{head}, eff});
+}
+
+// ---------- Hauptfunktion ----------
+TseitinTransformer::Result TseitinTransformer::transform(TaskProxy &proxy)
+{
+    dbg << "[ORIG AXIOMS] " << proxy.get_axioms().size() << "\n";
+
+    // ---------------- Axiome des Tasks übernehmen/ersetzen ------------
+    for (auto ax : proxy.get_axioms())
+    {
+        std::vector<FactPair> conds;
+        for (auto c : ax.get_preconditions())
+            conds.push_back({c.get_variable().get_id(), c.get_value()});
+        FactPair eff = ax.get_effects()[0].get_fact().get_pair();
+
+        (conds.size() <= 1) ? axioms.push_back({conds, eff})
+                            : encode_axiom(conds, eff);
     }
 
-    FactPair TseitinTransformer::make_aux()
+    // -------------- Operator-Effekte transformieren ------------------
+    auto ops = proxy.get_operators();
+    for (size_t op_i = 0; op_i < ops.size(); ++op_i)
     {
-        FactPair aux{next_aux_var_id++, next_aux_value++};
-        debug_file << "[TSEITIN] make_aux => (" << aux.var << "," << aux.value << ")\n";
-        return aux;
-    }
-
-    size_t TseitinTransformer::hash_head_eff(const FactPair &h, const FactPair &e)
-    {
-        uint64_t a = (uint64_t(h.var) << 32) | uint32_t(h.value);
-        uint64_t b = (uint64_t(e.var) << 32) | uint32_t(e.value);
-        return size_t(a ^ (b << 1));
-    }
-
-    FactPair TseitinTransformer::encode_recursive(std::vector<FactPair> &lits)
-    {
-        assert(!lits.empty());
-        if (lits.size() == 1)
+        auto op = ops[op_i];
+        for (size_t eff_i = 0; eff_i < op.get_effects().size(); ++eff_i)
         {
-            return lits[0];
-        }
-        if (lits.size() == 2)
-        {
-            auto a = lits[0], b = lits[1];
-            auto key = a.var < b.var
-                           ? std::make_pair(a.var, b.var)
-                           : std::make_pair(b.var, a.var);
-            if (auto it = pair_to_fact.find(key); it != pair_to_fact.end())
-                return it->second;
-            auto aux = make_aux();
-            pair_to_fact.emplace(key, aux);
-            fact_to_pair.emplace(aux, key);
-
-            axioms.push_back({{a, b}, aux});
-            axioms.push_back({{aux}, a});
-            axioms.push_back({{aux}, b});
-            return aux;
-        }
-        //  kombiniere die ersten beiden, dann rekursiv
-        std::vector<FactPair> first_two = {lits[0], lits[1]};
-        auto head = encode_recursive(first_two);
-        std::vector<FactPair> rest(lits.begin() + 2, lits.end());
-        rest.insert(rest.begin(), head);
-        return encode_recursive(rest);
-    }
-
-    void TseitinTransformer::encode_axiom(
-        const std::vector<FactPair> &conds,
-        const FactPair &eff)
-    {
-        // sortieren für double elim
-        auto lits = conds;
-        std::sort(lits.begin(), lits.end(),
-                  [](auto &x, auto &y)
-                  {
-                      return std::tie(x.var, x.value) < std::tie(y.var, y.value);
-                  });
-        auto head = encode_recursive(lits);
-        auto key = hash_head_eff(head, eff);
-        if (seen_head_eff.insert(key).second)
-            axioms.push_back({{head}, eff});
-    }
-
-    std::pair<
-        std::vector<TseitinAxiom>,
-        std::unordered_map<FactPair, std::pair<int, int>, FactPairHash>>
-    TseitinTransformer::transform(TaskProxy &proxy)
-    {
-        debug_file << "[TSEITIN] transform(proxy) start\n";
-
-        // bei 1 Precondition deligieren
-        std::vector<TseitinAxiom> all_axioms;
-        all_axioms.reserve(proxy.get_axioms().size());
-
-        for (const auto &ax : proxy.get_axioms())
-        {
+            auto eff = op.get_effects()[eff_i];
             std::vector<FactPair> conds;
-            conds.reserve(ax.get_preconditions().size());
-            for (const auto &c : ax.get_preconditions())
-                conds.emplace_back(c.get_variable().get_id(), c.get_value());
-            auto eff = ax.get_effects()[0].get_fact().get_pair();
+            for (auto c : eff.get_conditions())
+                conds.push_back({c.get_variable().get_id(), c.get_value()});
 
             if (conds.size() <= 1)
-            {
-                all_axioms.push_back({conds, eff});
-            }
-            else
-            {
-                // ab 2 Preconditions Tseitin encode aufrufen
-                encode_axiom(conds, eff);
-            }
+                continue;                            // delegieren
+            FactPair head = encode_recursive(conds); // erzeugt Axiome
+            head_map.emplace(std::pair{static_cast<int>(op_i),
+                                       static_cast<int>(eff_i)},
+                             head);
         }
-
-        all_axioms.insert(all_axioms.end(), axioms.begin(), axioms.end());
-
-        debug_file << "[TSEITIN] transform(proxy) done, total axioms="
-                   << all_axioms.size() << "\n";
-        return {all_axioms, fact_to_pair};
     }
+    int aux_vars = next_aux_var_id - proxy.get_variables().size();
+    dbg << "[NEW AXIOMS] " << axioms.size() << "  aux_vars=" << aux_vars << "\n";
 
-} // namespace tasks
+    return {axioms, head_map, aux_vars};
+}

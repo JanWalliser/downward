@@ -1,33 +1,22 @@
-// src/search/tasks/tseitin_transformer.h
-
 #ifndef TASKS_TSEITIN_TRANSFORMER_H
 #define TASKS_TSEITIN_TRANSFORMER_H
 
-#include "../abstract_task.h"
 #include "../task_proxy.h"
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
-#include <utility>
 #include <fstream>
 
 namespace tasks
 {
 
-    // Tseitin-Axiom: Bedingungen ->Effekt
+    // ---------------------------
+    //  Datenstrukturen
+    // ---------------------------
     struct TseitinAxiom
     {
         std::vector<FactPair> conditions;
         FactPair effect;
-    };
-
-    // Hash für FactPair
-    struct FactPairHash
-    {
-        size_t operator()(const FactPair &f) const noexcept
-        {
-            return std::hash<int>()(f.var) ^ (std::hash<int>()(f.value) << 1);
-        }
     };
 
     struct IntPairHash
@@ -38,34 +27,39 @@ namespace tasks
         }
     };
 
+    // ---------------------------
+    //  TseitinTransformer
+    // ---------------------------
     class TseitinTransformer
     {
-        int next_aux_var_id;
-        int next_aux_value;
-        std::unordered_map<std::pair<int, int>, FactPair, IntPairHash> pair_to_fact;
-        std::unordered_map<FactPair, std::pair<int, int>, FactPairHash> fact_to_pair;
-        std::unordered_set<size_t> seen_head_eff;
-        std::vector<TseitinAxiom> axioms;
-        std::ofstream debug_file;
+        int next_aux_var_id;    // nächste freie Variable-ID
+        int next_aux_value = 0; // stets 0/1-Domäne → Wert immer 0/1
 
+        //  Memoisierung für (a,b) → aux-Literal
+        std::unordered_map<std::pair<int, int>, FactPair, IntPairHash> comb_cache;
+        //  Hilfsaxiome + übernommene Originalaxiome
+        std::vector<TseitinAxiom> axioms;
+        //  Map (opIdx,effIdx) → headLiteral  (für Task)
+        std::unordered_map<std::pair<int, int>, FactPair, IntPairHash> head_map;
+
+        std::ofstream dbg;
+
+        // Hilfsmethoden
         FactPair make_aux();
         FactPair encode_recursive(std::vector<FactPair> &lits);
-        static size_t hash_head_eff(const FactPair &h, const FactPair &e);
+        void encode_axiom(const std::vector<FactPair> &conds, const FactPair &eff);
 
     public:
         explicit TseitinTransformer(int start_var_id);
 
-        void encode_axiom(const std::vector<FactPair> &conds, const FactPair &eff);
-
-        std::pair<
-            std::vector<TseitinAxiom>,
-            std::unordered_map<FactPair, std::pair<int, int>, FactPairHash>>
-        transform(TaskProxy &proxy);
-
-        const std::unordered_map<FactPair, std::pair<int, int>, FactPairHash> &
-        get_fact_mapping() const { return fact_to_pair; }
+        struct Result
+        {
+            std::vector<TseitinAxiom> axioms;
+            std::unordered_map<std::pair<int, int>, FactPair, IntPairHash> head_map;
+            int num_aux_vars; // wie viele Hilfs-Variablen erzeugt
+        };
+        Result transform(TaskProxy &proxy);
     };
 
 } // namespace tasks
-
-#endif // TASKS_TSEITIN_TRANSFORMER_H
+#endif

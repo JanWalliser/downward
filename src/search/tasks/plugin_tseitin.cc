@@ -1,40 +1,33 @@
-
-
-#include "tseitin_task.h"
 #include "tseitin_transformer.h"
+#include "tseitin_task.h"
 #include "root_task.h"
-#include "../plugins/plugin.h"
 #include "../task_proxy.h"
-#include <utility>
-
-using namespace std;
+#include "../plugins/plugin.h"
 
 namespace tasks
 {
-
-    class TseitinTaskFeature : public plugins::TypedFeature<AbstractTask, TseitinTask>
+    class TseitinFeature : public plugins::TypedFeature<AbstractTask, AbstractTask>
     {
     public:
-        TseitinTaskFeature() : TypedFeature("tseitin")
-        {
-            document_title("Tseitin transformation for axioms");
-            document_synopsis("Sortes all preconditions and Recursively combines them into Tseitin literals.");
-        }
+        TseitinFeature() : TypedFeature("tseitin") {}
 
-        shared_ptr<TseitinTask> create_component(const plugins::Options &) const override
+        std::shared_ptr<AbstractTask> create_component(const plugins::Options &) const override
         {
-            auto parent = g_root_task;
-            TaskProxy proxy(*parent);
-            TseitinTransformer transformer(parent->get_num_variables());
+            auto base = g_root_task;
+            TaskProxy proxy(*base);
 
-            // transform(proxy) gibt zurück  pair<axioms,mapping>
-            auto result = transformer.transform(proxy);
-            auto &axioms = result.first;
-            auto &mapping = result.second;
-            return make_shared<TseitinTask>(parent, axioms, mapping);
+            TseitinTransformer tr(proxy.get_variables().size());
+            auto res = tr.transform(proxy);
+
+            bool changed = !res.head_map.empty() || res.num_aux_vars > 0;
+            if (!changed)
+                return base; // identische Task → nichts verändern
+
+            return std::make_shared<TseitinTask>(base,
+                                                 std::move(res.axioms),
+                                                 std::move(res.head_map),
+                                                 res.num_aux_vars);
         }
     };
-
-    static plugins::FeaturePlugin<TseitinTaskFeature> _plugin;
-
+    static plugins::FeaturePlugin<TseitinFeature> _plugin;
 } // namespace tasks

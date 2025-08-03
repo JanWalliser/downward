@@ -1,3 +1,2 @@
-[TSEITIN] Initialized at var=29
-[TSEITIN] transform(proxy) start
-[TSEITIN] transform(proxy) done, total axioms=24
+[ORIG AXIOMS] 21
+[NEW AXIOMS] 21  aux_vars=0
