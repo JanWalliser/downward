@@ -1,46 +1,55 @@
-#ifndef TASKS_TSEITIN_TASK_H
-#define TASKS_TSEITIN_TASK_H
+#pragma once
 
 #include "delegating_task.h"
-#include "tseitin_transformer.h" // TseitinAxiom + IntPairHash
-#include <unordered_map>
+#include "tseitin_transformer.h"
+#include <memory>
+#include <vector>
 
 namespace tasks
 {
 
     class TseitinTask : public DelegatingTask
     {
-        std::vector<TseitinAxiom> axioms;                                     // alte+neue Axiome
-        std::unordered_map<std::pair<int, int>, FactPair, IntPairHash> heads; // (op,eff)→head
-        int parent_vars;                                                      // #Variablen im Original-Task
-        int aux_vars;                                                         // #erzeugte Hilfs-Variablen
-
     public:
+        /**
+         * @param parent   Originaltask (echte Operatoren unverändert)
+         * @param axioms_  Alle transformierten Domain‐Axiome
+         * @param aux_vars Anzahl der neuen Hilfsvariablen
+         */
         TseitinTask(std::shared_ptr<AbstractTask> parent,
                     std::vector<TseitinAxiom> axioms_,
-                    std::unordered_map<std::pair<int, int>, FactPair, IntPairHash> heads_,
                     int aux_vars_);
 
-        /* ---------- Variablen ---------- */
         int get_num_variables() const override;
         int get_variable_domain_size(int var) const override;
         int get_variable_axiom_layer(int var) const override;
         int get_variable_default_axiom_value(int var) const override;
         std::vector<int> get_initial_state_values() const override;
-        void convert_state_values_from_parent(std::vector<int> &) const override;
+        void convert_state_values_from_parent(std::vector<int> &values) const override;
 
-        /* ---------- Axiome ---------- */
-        int get_num_axioms() const override;
-        int get_num_operator_preconditions(int op, bool ax) const override;
-        FactPair get_operator_precondition(int op, int idx, bool ax) const override;
+        int get_num_operators() const override { return parent->get_num_operators(); }
+        std::string get_operator_name(int index, bool is_axiom) const override;
 
-        /* ---------- Effekt-Prä-Conditions ---------- */
-        int get_num_operator_effect_conditions(int op, int eff, bool ax) const override;
-        FactPair get_operator_effect_condition(int op, int eff, int idx, bool ax) const override;
+        // --- Tseitin‐Axiome ---
+        int get_num_axioms() const override { return static_cast<int>(axioms.size()); }
 
-        /* ---------- Debug-Name ---------- */
-        std::string get_operator_name(int op, bool ax) const override;
+        int get_num_operator_preconditions(int index, bool is_axiom) const override;
+        FactPair get_operator_precondition(int op_index, int fact_index, bool is_axiom) const override;
+
+        int get_num_operator_effects(int index, bool is_axiom) const override;
+        FactPair get_operator_effect(int op_index, int eff_index, bool is_axiom) const override;
+
+        // Axiom-Effekt‐Preconditions
+
+        int get_num_operator_effect_conditions(int, int, bool is_axiom) const override;
+        FactPair get_operator_effect_condition(int, int, int, bool is_axiom) const override;
+
+        int get_operator_cost(int index, bool is_axiom) const override;
+
+    private:
+        std::vector<TseitinAxiom> axioms;
+        int parent_vars;
+        int aux_vars;
     };
 
 } // namespace tasks
-#endif
