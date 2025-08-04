@@ -51,13 +51,13 @@ FactPair TseitinTransformer::encode_recursive(std::vector<FactPair> &lits)
     FactPair a = lits[lits.size() - 2];
     FactPair b = lits[lits.size() - 1];
 
-    std::pair<int, int> key =
-        (a.var < b.var) ? std::pair<int, int>(a.var, b.var)
-                        : std::pair<int, int>(b.var, a.var);
+    std::pair<FactPair, FactPair> key =
+        (a.var < b.var) ? std::pair<FactPair, FactPair>(a, b)
+                        : std::pair<FactPair, FactPair>(b, a);
 
     /* Prüfen, ob es schon eine Hilfsvariable für (a,b) gibt */
     FactPair aux(-1, -1); // default
-    std::unordered_map<std::pair<int, int>, FactPair, IntPairHash>::iterator it =
+    std::unordered_map<std::pair<FactPair, FactPair>, FactPair, FactPairHash>::iterator it =
         comb_cache.find(key);
 
     if (it != comb_cache.end())

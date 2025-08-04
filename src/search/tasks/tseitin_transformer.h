@@ -23,12 +23,20 @@ namespace tasks
         }
     };
 
+    struct FactPairHash
+    {
+        size_t operator()(const std::pair<FactPair, FactPair> &p) const noexcept
+        {
+            return std::hash<int>()(p.first.var) ^ (std::hash<int>()(p.first.value) << 1) ^ (std::hash<int>()(p.second.value) << 2) ^ (std::hash<int>()(p.second.value) << 3);
+        }
+    };
+
     class TseitinTransformer
     {
         int next_aux_var_id;
         static constexpr int next_aux_value = 1;
 
-        std::unordered_map<std::pair<int, int>, FactPair, IntPairHash> comb_cache;
+        std::unordered_map<std::pair<FactPair, FactPair>, FactPair, FactPairHash> comb_cache;
         std::vector<TseitinAxiom> axioms;
         std::ofstream dbg;
 
