@@ -3,17 +3,24 @@
 #include "plan_manager.h"
 #include "search_algorithm.h"
 
+#include "heuristics/ff_heuristic.h"
 #include "parser/lexical_analyzer.h"
 #include "parser/syntax_analyzer.h"
 #include "plugins/any.h"
 #include "plugins/doc_printer.h"
 #include "plugins/plugin.h"
+#include "pruning/null_pruning_method.h"
+#include "search_algorithms/eager_search.h"
+#include "tasks/root_task.h"
+#include "tasks/tseitin_task.h"
+#include "tasks/tseitin_transformer.h"
 #include "utils/logging.h"
 #include "utils/strings.h"
 
 #include <algorithm>
 #include <sstream>
 #include <vector>
+#include "search_algorithms/search_common.h"
 
 using namespace std;
 
@@ -149,6 +156,68 @@ static shared_ptr<SearchAlgorithm> parse_cmd_line_aux(const vector<string> &args
             num_previously_generated_plans = parse_int_arg(arg, args[i]);
             if (num_previously_generated_plans < 0)
                 input_error("argument for --internal-previous-portfolio-plans must be positive");
+        } else if (arg == "--eager-FF-with-Tseitin") {
+
+            // Create transformed task
+            TaskProxy proxy(*tasks::g_root_task);
+            tasks::TseitinTransformer tr(proxy.get_variables().size());
+            auto res = tr.transform(proxy);
+            shared_ptr<AbstractTask> tseitin_task = std::make_shared<tasks::TseitinTask>(
+                tasks::g_root_task,
+                std::move(res.axioms),
+                res.num_aux_vars);
+
+            // Create open list factory with FF
+            shared_ptr<Evaluator> ff = make_shared<ff_heuristic::FFHeuristic>(
+                tasks::AxiomHandlingType::APPROXIMATE_NEGATIVE_CYCLES, tseitin_task,
+                true, "FF Heuristic with Tseitin", utils::Verbosity::NORMAL);
+            shared_ptr<OpenListFactory> open_list_factory = search_common::create_greedy_open_list_factory(
+                {ff}, {}, 0);
+
+            shared_ptr<PruningMethod> prune = make_shared<null_pruning_method::NullPruningMethod>(utils::Verbosity::NORMAL);
+
+            vector<shared_ptr<Evaluator>> pref = {};
+
+            search_algorithm = make_shared<eager_search::EagerSearch>(
+                open_list_factory,
+                false,
+                nullptr,
+                pref,
+                prune,
+                nullptr,
+                NORMAL,
+                numeric_limits<int>::max(),
+                numeric_limits<double>::infinity(),
+                tseitin_task,
+                "manual search with FF and Tseitin",
+                utils::Verbosity::NORMAL);
+} else if (arg == "--eager-FF-without-Tseitin") {
+
+            // Create open list factory with FF
+            shared_ptr<Evaluator> ff = make_shared<ff_heuristic::FFHeuristic>(
+                tasks::AxiomHandlingType::APPROXIMATE_NEGATIVE_CYCLES, tasks::g_root_task,
+                true, "FF Heuristic without Tseitin", utils::Verbosity::NORMAL);
+            shared_ptr<OpenListFactory> open_list_factory = search_common::create_greedy_open_list_factory(
+                {ff}, {}, 0);
+
+            shared_ptr<PruningMethod> prune = make_shared<null_pruning_method::NullPruningMethod>(utils::Verbosity::NORMAL);
+
+            vector<shared_ptr<Evaluator>> pref = {};
+
+            search_algorithm = make_shared<eager_search::EagerSearch>(
+                open_list_factory,
+                false,
+                nullptr,
+                pref,
+                prune,
+                nullptr,
+                NORMAL,
+                numeric_limits<int>::max(),
+                numeric_limits<double>::infinity(),
+                tasks::g_root_task,
+                "manual search with FF and Tseitin",
+                utils::Verbosity::NORMAL);
+
         } else {
             input_error("unknown option " + arg);
         }
