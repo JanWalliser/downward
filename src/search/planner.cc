@@ -29,6 +29,7 @@ int main(int argc, const char **argv) {
             TaskProxy task_proxy(*tasks::g_root_task);
             unit_cost = task_properties::is_unit_cost(task_proxy);
         }
+        
 
         shared_ptr<SearchAlgorithm> search_algorithm =
             parse_cmd_line(argc, argv, unit_cost);

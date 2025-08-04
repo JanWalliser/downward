@@ -4,6 +4,7 @@
 #include "search_algorithm.h"
 
 #include "heuristics/ff_heuristic.h"
+#include "heuristics/additive_heuristic.h"
 #include "parser/lexical_analyzer.h"
 #include "parser/syntax_analyzer.h"
 #include "plugins/any.h"
@@ -12,6 +13,7 @@
 #include "pruning/null_pruning_method.h"
 #include "search_algorithms/eager_search.h"
 #include "tasks/root_task.h"
+#include "abstract_task.h"
 #include "tasks/tseitin_task.h"
 #include "tasks/tseitin_transformer.h"
 #include "utils/logging.h"
@@ -87,6 +89,48 @@ static vector<string> replace_old_style_predefinitions(const vector<string> &arg
     return new_args;
 }
 
+static shared_ptr<tasks::TseitinTask> get_tseitin_task(TaskProxy &proxy) {
+    tasks::TseitinTransformer tr(proxy.get_variables().size());
+    auto res = tr.transform(proxy);
+    return std::make_shared<tasks::TseitinTask>(
+                tasks::g_root_task,
+                std::move(res.axioms),
+                res.num_aux_vars);
+}
+
+static shared_ptr<Heuristic> get_additive_heuristic(shared_ptr<AbstractTask> task, const std::string &description) {
+    return make_shared<additive_heuristic::AdditiveHeuristic>(
+                tasks::AxiomHandlingType::APPROXIMATE_NEGATIVE_CYCLES, task,
+                true, description, utils::Verbosity::NORMAL);
+}
+
+static shared_ptr<Heuristic> get_ff_heuristic(shared_ptr<AbstractTask> task, const std::string &description) {
+    return make_shared<ff_heuristic::FFHeuristic>(
+                tasks::AxiomHandlingType::APPROXIMATE_NEGATIVE_CYCLES, task,
+                true, description, utils::Verbosity::NORMAL);
+}
+
+static shared_ptr<SearchAlgorithm> get_greedy_open_list(shared_ptr<Evaluator> heur) {
+    shared_ptr<OpenListFactory> open_list_factory = search_common::create_greedy_open_list_factory({heur}, {}, 0);
+    shared_ptr<PruningMethod> prune = make_shared<null_pruning_method::NullPruningMethod>(utils::Verbosity::NORMAL);
+    vector<shared_ptr<Evaluator>> pref = {};
+            
+    return make_shared<eager_search::EagerSearch>(
+                open_list_factory,
+                false,
+                nullptr,
+                pref,
+                prune,
+                nullptr,
+                NORMAL,
+                numeric_limits<int>::max(),
+                numeric_limits<double>::infinity(),
+                tasks::g_root_task,
+                "hand-crafted-open-list",
+                utils::Verbosity::NORMAL);
+}
+
+
 static shared_ptr<SearchAlgorithm> parse_cmd_line_aux(const vector<string> &args) {
     string plan_filename = "sas_plan";
     int num_previously_generated_plans = 0;
@@ -156,68 +200,20 @@ static shared_ptr<SearchAlgorithm> parse_cmd_line_aux(const vector<string> &args
             num_previously_generated_plans = parse_int_arg(arg, args[i]);
             if (num_previously_generated_plans < 0)
                 input_error("argument for --internal-previous-portfolio-plans must be positive");
-        } else if (arg == "--eager-FF-with-Tseitin") {
-
-            // Create transformed task
+        } else if (arg == "--eager-FF-with-Tseitin") { // in principle --search "eager_greedy([ff(transform=tseitin())], transform=tseitin())"
             TaskProxy proxy(*tasks::g_root_task);
-            tasks::TseitinTransformer tr(proxy.get_variables().size());
-            auto res = tr.transform(proxy);
-            shared_ptr<AbstractTask> tseitin_task = std::make_shared<tasks::TseitinTask>(
-                tasks::g_root_task,
-                std::move(res.axioms),
-                res.num_aux_vars);
-
+            shared_ptr<AbstractTask> tseitin_task = get_tseitin_task(proxy);
             // Create open list factory with FF
-            shared_ptr<Evaluator> ff = make_shared<ff_heuristic::FFHeuristic>(
-                tasks::AxiomHandlingType::APPROXIMATE_NEGATIVE_CYCLES, tseitin_task,
-                true, "FF Heuristic with Tseitin", utils::Verbosity::NORMAL);
-            shared_ptr<OpenListFactory> open_list_factory = search_common::create_greedy_open_list_factory(
-                {ff}, {}, 0);
-
-            shared_ptr<PruningMethod> prune = make_shared<null_pruning_method::NullPruningMethod>(utils::Verbosity::NORMAL);
-
-            vector<shared_ptr<Evaluator>> pref = {};
-
-            search_algorithm = make_shared<eager_search::EagerSearch>(
-                open_list_factory,
-                false,
-                nullptr,
-                pref,
-                prune,
-                nullptr,
-                NORMAL,
-                numeric_limits<int>::max(),
-                numeric_limits<double>::infinity(),
-                tseitin_task,
-                "manual search with FF and Tseitin",
-                utils::Verbosity::NORMAL);
-} else if (arg == "--eager-FF-without-Tseitin") {
-
-            // Create open list factory with FF
-            shared_ptr<Evaluator> ff = make_shared<ff_heuristic::FFHeuristic>(
-                tasks::AxiomHandlingType::APPROXIMATE_NEGATIVE_CYCLES, tasks::g_root_task,
-                true, "FF Heuristic without Tseitin", utils::Verbosity::NORMAL);
-            shared_ptr<OpenListFactory> open_list_factory = search_common::create_greedy_open_list_factory(
-                {ff}, {}, 0);
-
-            shared_ptr<PruningMethod> prune = make_shared<null_pruning_method::NullPruningMethod>(utils::Verbosity::NORMAL);
-
-            vector<shared_ptr<Evaluator>> pref = {};
-
-            search_algorithm = make_shared<eager_search::EagerSearch>(
-                open_list_factory,
-                false,
-                nullptr,
-                pref,
-                prune,
-                nullptr,
-                NORMAL,
-                numeric_limits<int>::max(),
-                numeric_limits<double>::infinity(),
-                tasks::g_root_task,
-                "manual search with FF and Tseitin",
-                utils::Verbosity::NORMAL);
-
+            shared_ptr<Evaluator> ff = get_ff_heuristic(tseitin_task, "FF Heuristic with Tseitin");
+            search_algorithm = get_greedy_open_list(ff);
+        }  else if (arg == "--eager-add-with-Tseitin") { // in principle --search "eager_greedy([add(transform=tseitin())], transform=tseitin())"
+            TaskProxy proxy(*tasks::g_root_task);
+            shared_ptr<AbstractTask> tseitin_task = get_tseitin_task(proxy);
+            shared_ptr<Evaluator> add = get_additive_heuristic(tseitin_task, "Additive Heuristic with Tseitin");
+            search_algorithm = get_greedy_open_list(add);
+        } else if (arg == "--eager-FF-without-Tseitin") {  // --search "eager_greedy([ff()])"
+            shared_ptr<Evaluator> ff = get_ff_heuristic(tasks::g_root_task, "FF Heuristic with Root Task");
+            search_algorithm = get_greedy_open_list(ff);
         } else {
             input_error("unknown option " + arg);
         }
