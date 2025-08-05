@@ -9,7 +9,24 @@ namespace tasks
         : DelegatingTask(parent),
           axioms(std::move(axioms_)),
           parent_vars(parent->get_num_variables()),
-          aux_vars(aux_vars_) {}
+          aux_vars(aux_vars_) {
+//            TaskProxy proxy(*this);
+//            std::ofstream dbg("tseitin_debug_result.log", std::ios::out);
+//            const AxiomsProxy &axioms = proxy.get_axioms();
+//            dbg << "[RES AXIOMS] " << axioms.size() << "\n";
+//            dbg << "[RES Variables] " << proxy.get_variables().size() << "\n";
+//            for (const OperatorProxy &ax : axioms)
+//            {
+//              dbg << ax.get_name() << " pre=[";
+//              for (const FactProxy &c : ax.get_effects()[0].get_conditions())
+//                dbg << c.get_pair() << " ";
+//              dbg << "] ";
+//              for (auto precond: ax.get_preconditions()) {
+//                dbg << precond.get_pair().var << "=" << precond.get_pair().value;
+//              }
+//              dbg << " -> " << ax.get_effects()[0].get_fact().get_pair() << "\n";
+//            }
+          }
 
     int TseitinTask::get_num_variables() const
     {
@@ -86,20 +103,14 @@ namespace tasks
     {
         if (!is_axiom)
             return parent->get_num_operator_preconditions(index, false);
-        if (index < parent_vars)
-            return parent->get_num_operator_preconditions(index, true);
         return 1;
     }
 
-        FactPair TseitinTask::get_operator_precondition(int op_index, int fact_index, bool is_axiom) const
+    FactPair TseitinTask::get_operator_precondition(int op_index, int fact_index, bool is_axiom) const
     {
         if (!is_axiom)
         {
             return parent->get_operator_precondition(op_index, fact_index, false);
-        }
-        if (op_index < parent_vars)
-        {
-            return parent->get_operator_precondition(op_index, fact_index, true);
         }
         int var = get_operator_effect(op_index, 0, true).var;
         return FactPair(var, get_variable_default_axiom_value(var));
