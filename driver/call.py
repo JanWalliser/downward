@@ -72,6 +72,6 @@ def get_error_output_and_returncode(nick, cmd, time_limit=None, memory_limit=Non
     preexec_fn = _get_preexec_function(time_limit, memory_limit)
 
     sys.stdout.flush()
-    p = subprocess.Popen(cmd, preexec_fn=preexec_fn, stderr=subprocess.PIPE)
+    p = subprocess.Popen(cmd, preexec_fn=preexec_fn, stderr=subprocess.PIPE, text=True)
     (stdout, stderr) = p.communicate()
     return stderr, p.returncode
