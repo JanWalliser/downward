@@ -13,6 +13,7 @@ namespace tasks
     {
         std::vector<FactPair> conditions;
         FactPair effect;
+        int layer;
     };
 
     struct IntPairHash
@@ -41,8 +42,8 @@ namespace tasks
         std::ofstream dbg;
 
         FactPair make_aux();
-        FactPair encode_recursive(std::vector<FactPair> &lits);
-        void encode_axiom(const std::vector<FactPair> &conds, const FactPair &eff);
+        FactPair encode_recursive(std::vector<FactPair> &lits, int &layer);
+        void encode_axiom(const std::vector<FactPair> &conds, const FactPair &eff, int &layer);
 
     public:
         explicit TseitinTransformer(int start_var_id);
