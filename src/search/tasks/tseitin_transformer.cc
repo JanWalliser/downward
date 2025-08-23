@@ -36,7 +36,7 @@ FactPair TseitinTransformer::make_aux()
  * encode_recursive: teilt ein Literalliste von rechts, bis <= 2 übrig sind.
  * Liefert das Kopf-Literal (erstes Element) der gekürzten Liste.
  */
-FactPair TseitinTransformer::encode_recursive(std::vector<FactPair> &lits)
+FactPair TseitinTransformer::encode_recursive(std::vector<FactPair> &lits, int &layer)
 {
     assert(!lits.empty());
 
@@ -69,7 +69,7 @@ FactPair TseitinTransformer::encode_recursive(std::vector<FactPair> &lits)
     {
         aux = make_aux();
         comb_cache.emplace(key, aux);
-        axioms.push_back({{a, b}, aux});
+        axioms.push_back({{a, b}, aux, layer});
         dbg << "  [DEBUG] New aux " << aux << " for (" << a << "," << b << ")\n";
     }
 
@@ -82,7 +82,7 @@ FactPair TseitinTransformer::encode_recursive(std::vector<FactPair> &lits)
         dbg << " " << c;
     dbg << "\n";
 
-    return encode_recursive(lits);
+    return encode_recursive(lits, layer);
 }
 
 /*
@@ -90,7 +90,7 @@ FactPair TseitinTransformer::encode_recursive(std::vector<FactPair> &lits)
  * und legt das finale Axiom (≤2 Prä­missen) in axioms ab.
  */
 void TseitinTransformer::encode_axiom(const std::vector<FactPair> &conds,
-                                      const FactPair &eff)
+                                      const FactPair &eff, int &layer)
 {
     std::vector<FactPair> tmp = conds;
 
@@ -107,10 +107,10 @@ void TseitinTransformer::encode_axiom(const std::vector<FactPair> &conds,
     dbg << "] -> " << eff << "\n";
 
     /* Hilfsaxiome erzeugen */
-    encode_recursive(tmp);
+    encode_recursive(tmp, layer);
 
     /* finale Regel abspeichern (tmp hat 1 oder 2 Literale) */
-    axioms.push_back({tmp, eff});
+    axioms.push_back({tmp, eff, layer});
     dbg << "  [DEBUG] Final axiom:";
     for (const FactPair &c : tmp)
         dbg << " " << c;
@@ -148,9 +148,11 @@ TseitinTransformer::Result TseitinTransformer::transform(TaskProxy &proxy)
             conds.emplace_back(c.get_variable().get_id(), c.get_value());
 
         FactPair eff = ax.get_effects()[0].get_fact().get_pair();
+        VariableProxy varProxy = proxy.get_variables()[eff.var];
+        int layer = varProxy.get_axiom_layer();
 
-        (conds.size() <= 2) ? axioms.push_back({conds, eff})
-                            : encode_axiom(conds, eff);
+        (conds.size() <= 2) ? axioms.push_back({conds, eff, layer})
+                            : encode_axiom(conds, eff, layer);
     }
 
     /* ---------- (3) Ergebnis erzeugen ---------- */

@@ -9,24 +9,26 @@ namespace tasks
         : DelegatingTask(parent),
           axioms(std::move(axioms_)),
           parent_vars(parent->get_num_variables()),
-          aux_vars(aux_vars_) {
-//            TaskProxy proxy(*this);
-//            std::ofstream dbg("tseitin_debug_result.log", std::ios::out);
-//            const AxiomsProxy &axioms = proxy.get_axioms();
-//            dbg << "[RES AXIOMS] " << axioms.size() << "\n";
-//            dbg << "[RES Variables] " << proxy.get_variables().size() << "\n";
-//            for (const OperatorProxy &ax : axioms)
-//            {
-//              dbg << ax.get_name() << " pre=[";
-//              for (const FactProxy &c : ax.get_effects()[0].get_conditions())
-//                dbg << c.get_pair() << " ";
-//              dbg << "] ";
-//              for (auto precond: ax.get_preconditions()) {
-//                dbg << precond.get_pair().var << "=" << precond.get_pair().value;
-//              }
-//              dbg << " -> " << ax.get_effects()[0].get_fact().get_pair() << "\n";
-//            }
-          }
+          aux_vars(aux_vars_)
+    {
+
+        //            TaskProxy proxy(*this);
+        //            std::ofstream dbg("tseitin_debug_result.log", std::ios::out);
+        //            const AxiomsProxy &axioms = proxy.get_axioms();
+        //            dbg << "[RES AXIOMS] " << axioms.size() << "\n";
+        //            dbg << "[RES Variables] " << proxy.get_variables().size() << "\n";
+        //            for (const OperatorProxy &ax : axioms)
+        //            {
+        //              dbg << ax.get_name() << " pre=[";
+        //              for (const FactProxy &c : ax.get_effects()[0].get_conditions())
+        //                dbg << c.get_pair() << " ";
+        //              dbg << "] ";
+        //              for (auto precond: ax.get_preconditions()) {
+        //                dbg << precond.get_pair().var << "=" << precond.get_pair().value;
+        //              }
+        //              dbg << " -> " << ax.get_effects()[0].get_fact().get_pair() << "\n";
+        //            }
+    }
 
     int TseitinTask::get_num_variables() const
     {
@@ -42,35 +44,22 @@ namespace tasks
 
     int TseitinTask::get_variable_domain_size(int var) const
     {
-        return (var < parent_vars)
-                   ? parent->get_variable_domain_size(var)
-                   : 2;
+        for (const auto &ax : axioms)
+        {
+            if (ax.effect.var == var)
+                return 2;
+        }
+        return parent->get_variable_domain_size(var);
     }
 
     int TseitinTask::get_variable_axiom_layer(int var) const
     {
-        // Ändern max von beiden facts
-
-        if (var < parent_vars)
-            return parent->get_variable_axiom_layer(var);
-
-        const TseitinAxiom *def = nullptr;
         for (const auto &ax : axioms)
         {
             if (ax.effect.var == var)
-            {
-                def = &ax;
-                break;
-            }
+                return ax.layer;
         }
-
-        int max_layer_in_body = 0;
-        for (const FactPair &cond : def->conditions)
-        {
-            max_layer_in_body = std::max(max_layer_in_body,
-                                         get_variable_axiom_layer(cond.var));
-        }
-        return max_layer_in_body;
+        return parent->get_variable_axiom_layer(var);
     }
 
     int TseitinTask::get_variable_default_axiom_value(int var) const
